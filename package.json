@@ -1,0 +1,26 @@
+{
+  "name": "node-perf-analyzer",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "@typescript-eslint/types": "^8.14.0",
+    "eslint": "^8.0.0",
+    "turbo": "latest",
+    "typescript": "^5.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@octokit/rest": "^21.0.2"
+  }
+}
