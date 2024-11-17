@@ -9,8 +9,8 @@ export default function App() {
   const [code, setCode] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
 
-  const handleAnalyze = () => {
-    const result = analyzer.analyzeCode(code);
+  const handleAnalyze = async () => {
+    const result = await analyzer.analyzeCode(code);
     setAnalysis(result);
   };
 

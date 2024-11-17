@@ -10,9 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babel/preset-react": "^7.25.9",
     "@babel/standalone": "^7.26.2",
+    "babel": "^6.23.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "dotenv": "^16.4.5",
     "lucide-react": "^0.460.0",
     "openai": "^4.72.0",
     "react": "^18.3.1",
@@ -21,8 +24,11 @@
     "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
+    "@babel/cli": "^7.25.9",
     "@babel/core": "^7.26.0",
     "@babel/parser": "^7.26.2",
+    "@babel/preset-env": "^7.26.0",
+    "@babel/preset-typescript": "^7.26.0",
     "@babel/traverse": "^7.25.9",
     "@eslint/js": "^9.13.0",
     "@types/babel__core": "^7.20.5",
@@ -31,6 +37,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
+    "babel-cli": "^6.26.0",
     "eslint": "^9.13.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",

@@ -1,5 +1,11 @@
 {
   "devDependencies": {
     "@types/babel__standalone": "^7.1.9"
-  }
+  },
+  "presets": [
+        ["@babel/preset-env", {}],
+        ["@babel/preset-typescript", { "isTSX": true, "allExtensions": true }]
+    ]
+
 }
+
