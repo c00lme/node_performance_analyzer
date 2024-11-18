@@ -1,4 +1,5 @@
 import * as Babel from '@babel/standalone';
+import traverse from '@babel/traverse'; 
 import OpenAI from 'openai';
 import { PerformanceIssue, AnalysisResult } from '../types';
 
@@ -19,20 +20,30 @@ export class CodeAnalyzer {
   private openai: OpenAI;
 
   constructor() {
-    this.openai = new OpenAI({ apiKey: 'x', dangerouslyAllowBrowser: true });
+    this.openai = new OpenAI({ 
+      apiKey: '', 
+      dangerouslyAllowBrowser: true 
+    });
   }
 
   async analyzeCode(code: string): Promise<AnalysisResult> {
     try {
-      // Static analysis with Babel
+      // Fixed Babel configuration
       const result = Babel.transform(code, {
         ast: true,
         code: false,
-        filename: 'analysis.ts', // Fix for Babel preset filename error
+        filename: 'analysis.tsx', // Changed to .tsx
         sourceType: 'module',
-        presets: [['typescript', { isTSX: true }]],
+        presets: [[
+          'typescript', {
+            isTSX: true,
+            allExtensions: true, // Added this option
+            allowNamespaces: true,
+            allowDeclareFields: true,
+          }
+        ]],
         plugins: [
-          'transform-react-jsx',
+          ['transform-react-jsx', { runtime: 'automatic' }],
           'proposal-class-properties',
           'proposal-object-rest-spread'
         ]
@@ -41,65 +52,75 @@ export class CodeAnalyzer {
       this.issues = [];
 
       if (result.ast) {
-        (Babel as any).traverse(result.ast, {
+        traverse(result.ast, {
           CallExpression: (path: any) => {
             this.checkForNPlusOneQueries(path);
           },
         });
       }
 
-      // Enhance analysis with OpenAI, fallback to this even if static analysis fails
+      // Enhanced analysis with OpenAI using regex patterns
       const aiAnalysis = await this.getAIAnalysis(code);
 
-      // Merge static analysis with AI insights
       return this.mergeAnalysisResults(aiAnalysis);
 
     } catch (error) {
       console.error('Error analyzing code:', error);
-
-      // In case of Babel analysis failure, perform only AI analysis
       const aiAnalysis = await this.getAIAnalysis(code);
-
-      // Return only AI results if static analysis fails
       return this.mergeAnalysisResults(aiAnalysis);
     }
   }
 
   private async getAIAnalysis(code: string): Promise<AIAnalysisResponse> {
     try {
-      const prompt = `Analyze the following code for performance issues and provide metrics:
+      const prompt = `Analyze the following code for performance issues and provide metrics in the exact format shown below:
 
 Code:
 ${code}
 
-Please provide:
-1. Estimated load time impact (in seconds)
-2. Database efficiency assessment (0-10 scale)
-3. Network optimization opportunities (0-10 scale)
-4. Overall potential improvement percentage
-5. List of any additional performance issues found
+Please format your response exactly as follows:
+LOAD_TIME: {number} seconds
+DATABASE_EFFICIENCY: {number}/10
+NETWORK_OPTIMIZATION: {number}/10
+POTENTIAL_IMPROVEMENT: {number}%
 
-Return the response as **strictly valid JSON**. Ensure all property names are enclosed in double quotes.
-`;
+PERFORMANCE_ISSUES:
+1. TYPE: {critical|warning|info}
+   TITLE: {issue title}
+   DESCRIPTION: {detailed description}
+   LINE: {line number if applicable}
+   SUGGESTION: {improvement suggestion}
+   IMPACT: {number}
+
+2. TYPE: {critical|warning|info}
+   ...
+(repeat for each issue found)`;
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o',
         messages: [{
           role: 'user',
           content: prompt,
         }],
       });
 
-      console.log(response);
-
-      const analysis = JSON.parse(response.choices[0].message?.content || '{}');
+      const content = response.choices[0].message?.content || '';
+      
+      // Extract metrics using regex patterns
+      const loadTime = this.extractNumber(content, /LOAD_TIME: ([\d.]+)/);
+      const dbEfficiency = this.extractNumber(content, /DATABASE_EFFICIENCY: ([\d.]+)/);
+      const networkOpt = this.extractNumber(content, /NETWORK_OPTIMIZATION: ([\d.]+)/);
+      const potentialImp = this.extractNumber(content, /POTENTIAL_IMPROVEMENT: ([\d.]+)/);
+      
+      // Extract performance issues
+      const issues = this.extractPerformanceIssues(content);
 
       return {
-        loadTimeImpact: analysis.loadTimeImpact || 0,
-        databaseEfficiency: analysis.databaseEfficiency || 0,
-        networkOptimization: analysis.networkOptimization || 0,
-        potentialImprovement: analysis.potentialImprovement || 0,
-        additionalIssues: analysis.issues || [],
+        loadTimeImpact: loadTime,
+        databaseEfficiency: dbEfficiency,
+        networkOptimization: networkOpt,
+        potentialImprovement: potentialImp,
+        additionalIssues: issues,
       };
     } catch (error) {
       console.error('Error getting AI analysis:', error);
@@ -113,11 +134,35 @@ Return the response as **strictly valid JSON**. Ensure all property names are en
     }
   }
 
+  private extractNumber(content: string, pattern: RegExp): number {
+    const match = content.match(pattern);
+    return match ? parseFloat(match[1]) : 0;
+  }
+
+  private extractPerformanceIssues(content: string): PerformanceIssue[] {
+    const issues: PerformanceIssue[] = [];
+    const issuePattern = /TYPE: (critical|warning|info)\s+TITLE: (.+?)\s+DESCRIPTION: (.+?)\s+(?:LINE: ([\d]+)\s+)?SUGGESTION: (.+?)\s+IMPACT: ([\d]+)/gs;
+    
+    let match;
+    while ((match = issuePattern.exec(content)) !== null) {
+      const [_, type, title, description, line, suggestion, impact] = match;
+      
+      issues.push({
+        type: type as 'critical' | 'warning' | 'info',
+        title: title.trim(),
+        description: description.trim(),
+        line: line ? parseInt(line) : undefined,
+        suggestion: suggestion.trim(),
+        impact: parseInt(impact),
+      });
+    }
+
+    return issues;
+  }
+
   private mergeAnalysisResults(aiAnalysis: AIAnalysisResponse): AnalysisResult {
-    // Combine static and AI-detected issues
     const allIssues = [...this.issues, ...aiAnalysis.additionalIssues];
 
-    // Calculate combined metrics
     const metrics = {
       loadTime: aiAnalysis.loadTimeImpact || this.calculateBaseLoadTime(),
       databaseLoad: aiAnalysis.databaseEfficiency || this.calculateBaseDatabaseLoad(),
@@ -191,7 +236,6 @@ Return the response as **strictly valid JSON**. Ensure all property names are en
       code: this.getExampleCode(issue.title),
     }));
 
-    // Add general recommendations based on metrics
     if (metrics.networkRequests > 10) {
       recommendations.push({
         title: 'Implement Request Batching',
